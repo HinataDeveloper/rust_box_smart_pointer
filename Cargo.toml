@@ -1,5 +1,5 @@
 [package]
-name = "rust_box_smart_pointer"
+name = "box_smart_pointer"
 version = "0.1.0"
 edition = "2024"
 
