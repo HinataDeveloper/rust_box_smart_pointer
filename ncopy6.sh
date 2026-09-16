@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# NCOPY v6 - Multi-File / Module Tree Iteration Tool
+# NCOPY v6.1 - Full 'src' Directory Tree Iteration Engine
 # Developed for: هیناتا (Hinata)
-# Features: Full 'src/' Tree Snapshots, Multi-file Reset, Rollback, Hash Tracking
 # ==============================================================================
 
 set -euo pipefail
 
-# --- Configuration & Defaults ---
+# --- Configuration ---
 SCRIPT_NAME="$(basename -- "$0")"
-DEFAULT_SOURCE_DIR="src"
-DEFAULT_TEMPLATE_DIR="./template_src"
-DEFAULT_SNAP_DIR="snapshots"
-DEFAULT_LOG=".ncopy.log"
-
-# --- State Variables ---
-SOURCE_DIR="$DEFAULT_SOURCE_DIR"
-TEMPLATE_DIR="$DEFAULT_TEMPLATE_DIR"
-SNAP_DIR="$DEFAULT_SNAP_DIR"
-LOG_NAME="$DEFAULT_LOG"
+SOURCE_DIR="src"
+TEMPLATE_DIR="template_src"
+SNAP_DIR="snapshots"
+LOG_FILE="$SNAP_DIR/.ncopy.log"
 
 # --- Flags ---
 DO_FMT=0
@@ -29,7 +22,7 @@ VERBOSE=0
 DRY_RUN=0
 FORCE=0
 
-# --- Colors for TTY ---
+# --- Colors ---
 if [[ -t 1 ]]; then
     C_RES='\033[0m'
     C_BOLD='\033[1m'
@@ -41,142 +34,144 @@ else
     C_RES='' C_BOLD='' C_RED='' C_GRN='' C_YLW='' C_BLU=''
 fi
 
-# --- Helper Functions ---
 info()    { printf "${C_BLU}[INFO]${C_RES} %s\n" "$1"; }
 success() { printf "${C_GRN}[OK]${C_RES}   %s\n" "$1"; }
 warn()    { printf "${C_YLW}[WARN]${C_RES} %s\n" "$1" >&2; }
 error()   { printf "${C_RED}[ERR]${C_RES}  %s\n" "$1" >&2; }
 die()     { error "$1"; exit 1; }
 
-# --- System Checks ---
-check_rust_env() {
-    [[ -f "Cargo.toml" ]] || die "Not in a Rust project root (Cargo.toml missing)."
-    [[ -d "$SOURCE_DIR" ]] || die "Source directory '$SOURCE_DIR' does not exist."
+# --- Verification ---
+check_env() {
+    [[ -f "Cargo.toml" ]] || die "Error: Cargo.toml not found in current directory."
+    [[ -d "$SOURCE_DIR" ]] || die "Error: '$SOURCE_DIR' directory does not exist."
     
     if [[ "$DO_GIT_CHECK" -eq 1 && -d ".git" ]]; then
         if ! grep -qs "$SNAP_DIR" .gitignore 2>/dev/null; then
-            warn "'$SNAP_DIR' is not in .gitignore. Snapshots might be tracked by Git."
+            warn "'$SNAP_DIR' is not in .gitignore."
         fi
     fi
 }
 
-get_tree_hash() {
-    # محاسبه هش کلی تمام فایل‌های داخل دایرکتوری به صورت پایدار
-    find "$1" -type f -exec sha256sum {} + | sort | sha256sum | awk '{print $1}'
+get_directory_hash() {
+    local target="$1"
+    if [[ ! -d "$target" ]]; then
+        echo "none"
+        return
+    fi
+    find "$target" -type f -exec sha256sum {} + | sort | sha256sum | awk '{print $1}'
 }
 
 log_event() {
     local msg="$1"
     local dir="${2:-}"
     local hash=""
-    [[ -n "$dir" && -d "$dir" ]] && hash="$(get_tree_hash "$dir")"
+    [[ -n "$dir" && -d "$dir" ]] && hash="$(get_directory_hash "$dir")"
     
-    local entry="$(date '+%Y-%m-%d %H:%M:%S') | $msg ${hash:+[TREE_SHA:$hash]}"
+    local entry="$(date '+%Y-%m-%d %H:%M:%S') | $msg ${hash:+[SHA:$hash]}"
     
-    if [[ "$DRY_RUN" -eq 1 ]]; then
-        info "[dry-run] Log entry: $entry"
-    else
+    if [[ "$DRY_RUN" -eq 0 ]]; then
         mkdir -p -- "$SNAP_DIR"
-        printf '%s\n' "$entry" >> "$SNAP_DIR/$LOG_NAME"
+        printf '%s\n' "$entry" >> "$LOG_FILE"
     fi
 }
 
-# --- Core Logic ---
 get_next_index() {
     local max=0
     shopt -s nullglob
-    for d in "$SNAP_DIR"/src_*; do
-        local base=$(basename "$d")
-        if [[ "$base" =~ ^src_([0-9]{3})_ ]]; then
-            local idx=$((10#${BASH_REMATCH[1]}))
-            (( idx > max )) && max=$idx
+    for entry in "$SNAP_DIR"/src_*; do
+        if [[ -d "$entry" ]]; then
+            local base=$(basename "$entry")
+            if [[ "$base" =~ ^src_([0-9]{3})_ ]]; then
+                local idx=$((10#${BASH_REMATCH[1]}))
+                (( idx > max )) && max=$idx
+            fi
         fi
     done
     printf "%03d" $((max + 1))
 }
 
+# --- Actions ---
 create_snapshot() {
-    local src="$1"
     local idx=$(get_next_index)
     local ts=$(date '+%Y%m%d_%H%M%S')
     local target="$SNAP_DIR/src_${idx}_${ts}"
 
-    info "Creating tree snapshot #$idx for '$src'..."
+    info "Creating full snapshot of entire '$SOURCE_DIR/' -> '$target'..."
+
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        info "[dry-run] cp -a $src $target"
+        info "[dry-run] cp -a $SOURCE_DIR $target"
     else
         mkdir -p -- "$SNAP_DIR"
-        cp -a -- "$src" "$target"
-        log_event "Snapshot created: $(basename "$target")" "$target"
-        success "Directory tree saved: $target"
+        # کپی کامل کل پوشه src با تمام محتویات، زیرپوشه‌ها و پرمیشن‌ها
+        cp -a -- "$SOURCE_DIR" "$target"
+        log_event "Snapshot #$idx created: $(basename "$target")" "$target"
+        success "Saved snapshot directory: $target"
+        
+        # نمایش فایل‌های کپی‌شده برای اطمینان خاطر
+        printf "${C_BOLD}Archived files in this snapshot:${C_RES}\n"
+        find "$target" -type f -printf "  - %P\n"
     fi
 }
 
 create_backup() {
-    local src="$1"
     local ts=$(date '+%Y%m%d_%H%M%S')
-    local bak=".${src}.bak.$ts"
+    local bak=".src_backup_${ts}"
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        info "[dry-run] Backup $src -> $bak"
+        info "[dry-run] Backup: cp -a $SOURCE_DIR $bak"
     else
-        cp -a -- "$src" "$bak"
+        cp -a -- "$SOURCE_DIR" "$bak"
         log_event "Backup created: $bak" "$bak"
     fi
 }
 
-init_template_if_missing() {
+setup_template_if_empty() {
     if [[ ! -d "$TEMPLATE_DIR" ]]; then
-        info "Template directory '$TEMPLATE_DIR' not found. Creating a default multi-file template..."
+        info "Template directory '$TEMPLATE_DIR' missing. Initializing with modular template..."
         mkdir -p "$TEMPLATE_DIR"
         cat << 'EOF' > "$TEMPLATE_DIR/lib.rs"
-pub fn hello_from_lib() {
-    println!("Hello from modular lib.rs!");
+pub fn run_logic() {
+    println!("Core engine logic from lib.rs");
 }
 EOF
         cat << 'EOF' > "$TEMPLATE_DIR/main.rs"
-// Replaced dynamically by package name or used directly
 fn main() {
-    println!("Bootstrapping new exercise...");
+    println!("Runner initialized.");
 }
 EOF
-        success "Created default template in '$TEMPLATE_DIR'."
+        success "Initialized '$TEMPLATE_DIR' with default main.rs and lib.rs."
     fi
 }
 
 perform_reset() {
-    init_template_if_missing
+    setup_template_if_empty
 
-    # مقایسه محتوای دایرکتوری سورس و قالب
-    local current_hash=$(get_tree_hash "$SOURCE_DIR")
-    local template_hash=$(get_tree_hash "$TEMPLATE_DIR")
+    local current_h=$(get_directory_hash "$SOURCE_DIR")
+    local template_h=$(get_directory_hash "$TEMPLATE_DIR")
 
-    if [[ "$current_hash" == "$template_hash" ]]; then
-        info "Source directory and Template are identical. Skipping reset."
+    if [[ "$current_h" == "$template_h" ]]; then
+        info "Current '$SOURCE_DIR/' is identical to template. Reset skipped."
         return 0
     fi
 
-    create_backup "$SOURCE_DIR"
-    
-    info "Resetting $SOURCE_DIR/ from $TEMPLATE_DIR/..."
+    create_backup
+
+    info "Purging current '$SOURCE_DIR/' and replacing with '$TEMPLATE_DIR/'..."
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        info "[dry-run] rm -rf $SOURCE_DIR/* && cp -a $TEMPLATE_DIR/* $SOURCE_DIR/"
+        info "[dry-run] rm -rf $SOURCE_DIR && cp -a $TEMPLATE_DIR $SOURCE_DIR"
     else
         rm -rf -- "$SOURCE_DIR"
-        mkdir -p -- "$SOURCE_DIR"
-        cp -a "$TEMPLATE_DIR"/. "$SOURCE_DIR"/
-        log_event "Reset performed from $TEMPLATE_DIR" "$SOURCE_DIR"
-        success "Reset complete. Clean multi-file structure ready."
+        cp -a -- "$TEMPLATE_DIR" "$SOURCE_DIR"
+        log_event "Reset to template" "$SOURCE_DIR"
+        success "'$SOURCE_DIR/' successfully refreshed from '$TEMPLATE_DIR/'."
     fi
 
-    # Hooks
-    [[ "$DO_FMT" -eq 1 ]] && { info "Running cargo fmt..."; cargo fmt || true; }
-    [[ "$DO_CHECK" -eq 1 ]] && { info "Running cargo check..."; cargo check || warn "Cargo check failed!"; }
+    [[ "$DO_FMT" -eq 1 ]] && { info "Formatting code..."; cargo fmt || true; }
+    [[ "$DO_CHECK" -eq 1 ]] && { info "Checking build..."; cargo check || warn "Cargo check failed!"; }
 }
 
-# --- Subcommands ---
 cmd_run() {
-    create_snapshot "$SOURCE_DIR"
+    create_snapshot
     perform_reset
 }
 
@@ -185,83 +180,71 @@ cmd_latest() {
     if [[ -z "$last" ]]; then
         warn "No snapshots found."
     else
-        info "Latest snapshot directory: $last"
-        if [[ "$VERBOSE" -eq 1 ]]; then
-            printf "${C_BOLD}Files in snapshot:${C_RES}\n"
-            find "$last" -maxdepth 3 -not -path '*/.*'
-        fi
+        info "Latest snapshot: $last"
+        printf "${C_BOLD}Snapshot content listing:${C_RES}\n"
+        find "$last" -type f -printf "  %p\n"
     fi
 }
 
 cmd_rollback() {
-    local latest_bak=$(ls -1d .${SOURCE_DIR}.bak.* 2>/dev/null | sort | tail -n 1)
-    [[ -z "$latest_bak" ]] && die "No backup directories found."
+    local latest_bak=$(ls -1d .src_backup_* 2>/dev/null | sort | tail -n 1)
+    [[ -z "$latest_bak" ]] && die "No backup folder (.src_backup_*) found."
     
-    info "Rolling back from backup $latest_bak..."
+    info "Restoring from $latest_bak..."
     if [[ "$DRY_RUN" -eq 1 ]]; then
         info "[dry-run] Restore $latest_bak -> $SOURCE_DIR"
     else
         rm -rf -- "$SOURCE_DIR"
         cp -a -- "$latest_bak" "$SOURCE_DIR"
-        success "Rollback successful."
+        success "Restored '$SOURCE_DIR/' from backup."
         log_event "Rollback from $latest_bak" "$SOURCE_DIR"
     fi
 }
 
 cmd_clean() {
     if [[ "$FORCE" -ne 1 ]]; then
-        read -p "Are you sure you want to delete all snapshots and backups? (y/N) " confirm
-        [[ "$confirm" =~ ^[Yy]$ ]] || die "Abort."
+        read -p "Delete ALL snapshots and emergency backups? (y/N) " confirm
+        [[ "$confirm" =~ ^[Yy]$ ]] || die "Aborted."
     fi
     rm -rf "$SNAP_DIR"/src_*
-    rm -rf .${SOURCE_DIR}.bak.*
-    success "Cleaned all directory snapshots and backups."
+    rm -rf .src_backup_*
+    success "Snapshots and temporary backups cleaned."
 }
 
 cmd_status() {
-    printf "${C_BOLD}--- Multi-File Workflow Status ---${C_RES}\n"
-    printf "Project Root  : %s\n" "$(pwd)"
-    printf "Source Dir    : %s/ (Tree Hash: %s)\n" "$SOURCE_DIR" "$(get_tree_hash "$SOURCE_DIR")"
-    if [[ -d "$TEMPLATE_DIR" ]]; then
-        printf "Template Dir  : %s/ (Tree Hash: %s)\n" "$TEMPLATE_DIR" "$(get_tree_hash "$TEMPLATE_DIR")"
-    else
-        printf "Template Dir  : [Not yet initialized]\n"
-    fi
-    printf "Snapshots     : %s\n" "$(ls -1d "$SNAP_DIR"/src_* 2>/dev/null | wc -l)"
-    
-    if [[ -d ".git" ]]; then
-        printf "Git Branch    : %s\n" "$(git rev-parse --abbrev-ref HEAD)"
-    fi
+    printf "${C_BOLD}--- Project Tree Status ---${C_RES}\n"
+    printf "Directory      : %s\n" "$(pwd)"
+    printf "Source Hash    : %s\n" "$(get_directory_hash "$SOURCE_DIR")"
+    printf "Files in src/  :\n"
+    find "$SOURCE_DIR" -type f -printf "  - %p\n"
+    printf "Total Snaps    : %s\n" "$(ls -1d "$SNAP_DIR"/src_* 2>/dev/null | wc -l)"
 }
 
-# --- CLI Boilerplate ---
 show_help() {
     cat <<EOF
-${C_BOLD}NCOPY v6 - The Multi-File Rust Workflow Engine${C_RES}
+${C_BOLD}NCOPY v6.1 - Directory Tree Snapshot Engine${C_RES}
 Usage: $SCRIPT_NAME <command> [options]
 
 Commands:
-  run        Full cycle: Snapshot src/ -> Backup -> Reset to template
-  snapshot   Take a snapshot of current src/ directory
-  reset      Reset src/ from template directory ($TEMPLATE_DIR)
-  rollback   Revert to latest src/ backup
-  latest     Show/Preview the newest snapshot
-  list       List all directory snapshots
-  status     Show project & tree status
-  clean      Delete snapshots and backups
-  help       Show this help
+  run        Snapshot current 'src/', then reset from 'template_src/'
+  snapshot   Snapshot current 'src/' directory only
+  reset      Reset 'src/' directly from 'template_src/'
+  rollback   Undo last reset from emergency backup
+  latest     List content of latest snapshot
+  list       Show list of snapshot directories
+  status     Show current files and hashes
+  clean      Delete snapshots & backups
+  help       Show help
 
 Options:
-  --fmt      Run 'cargo fmt' after reset
-  --check    Run 'cargo check' after reset
-  --dry-run  Show what would happen
-  --force    Skip confirmation for 'clean'
-  -v         Verbose output (shows directory tree in 'latest')
-
+  --fmt      Run cargo fmt after reset
+  --check    Run cargo check after reset
+  --dry-run  Simulate without altering files
+  --force    Bypass confirmations
 EOF
 }
 
-# --- Main Entry ---
+# --- Entry Point ---
 [[ $# -lt 1 ]] && { show_help; exit 1; }
 COMMAND="$1"; shift
 
@@ -272,23 +255,23 @@ while [[ $# -gt 0 ]]; do
         --dry-run) DRY_RUN=1 ;;
         --force) FORCE=1 ;;
         -v) VERBOSE=1 ;;
-        *) warn "Unknown option: $1" ;;
+        *) warn "Unknown argument: $1" ;;
     esac
     shift
 done
 
-check_rust_env
+check_env
 
 case "$COMMAND" in
     run)      cmd_run ;;
-    snapshot) create_snapshot "$SOURCE_DIR" ;;
+    snapshot) create_snapshot ;;
     reset)    perform_reset ;;
     rollback) cmd_rollback ;;
     latest)   cmd_latest ;;
     status)   cmd_status ;;
     clean)    cmd_clean ;;
-    list)     ls -ld "$SNAP_DIR"/src_* 2>/dev/null || warn "No snapshots." ;;
+    list)     ls -ld "$SNAP_DIR"/src_* 2>/dev/null || warn "No snapshots found." ;;
     help)     show_help ;;
-    *)        die "Unknown command: $COMMAND. Use 'help'." ;;
+    *)        die "Unknown command '$COMMAND'. Run '$SCRIPT_NAME help'." ;;
 esac
 
