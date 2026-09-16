@@ -1,9 +1,5 @@
 // Date: Thu Sep 16 2026
 
-// Project: Learning Chapter 15
-// Goal: Using Smart Pointer: Treating smart pointer like regular reference
-// Dependency: Without dependency
-
 // rustc 1.100.0-nightly (215a8af4b 2026-09-15)
 // binary: rustc
 // commit-hash: 215a8af4bb4c106cccf6d6535f84eaae91818265
@@ -25,8 +21,3 @@
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
 
-fn main() {
-    println!("\n");
-
-    println!("\nThe End ...\n");
-}

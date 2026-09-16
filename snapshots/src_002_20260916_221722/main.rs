@@ -28,5 +28,13 @@
 fn main() {
     println!("\n");
 
+    let mut x = 120;
+    let y = &mut x;
+
+    *y += 200;
+
+    println!("value of y is: {}", y);
+    println!("value of x is: {}", x);
+
     println!("\nThe End ...\n");
 }

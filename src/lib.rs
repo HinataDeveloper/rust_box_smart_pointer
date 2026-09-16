@@ -20,4 +20,3 @@
 
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
-
