@@ -1,7 +1,7 @@
 // Date: Thu Sep 16 2026
 
 // Project: Learning Chapter 15
-// Goal: Using Smart Pointer: ...
+// Goal: Using Smart Pointer: Treating smart pointer like regular reference
 // Dependency: Without dependency
 
 // rustc 1.100.0-nightly (215a8af4b 2026-09-15)
