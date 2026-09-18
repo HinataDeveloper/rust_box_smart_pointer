@@ -20,3 +20,20 @@
 
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
+
+use std::ops::Deref;
+
+pub struct MyBox<T>(T);
+
+impl<T> MyBox<T> {
+    pub fn new(x: T) -> MyBox<T> {
+        MyBox(x)
+    }
+}
+
+impl<T> Deref for MyBox<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}

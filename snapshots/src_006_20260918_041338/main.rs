@@ -1,4 +1,8 @@
-// Date: Thu Sep 18 2026
+// Date: Thu Sep 17 2026
+
+// Project: Learning Chapter 15
+// Goal: Using Smart Pointer: Treating smart pointer like regular reference
+// Dependency: Without dependency
 
 // rustc 1.100.0-nightly (923c95cdf 2026-09-16)
 // binary: rustc
@@ -20,3 +24,20 @@
 
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
+
+use box_smart_pointer::MyBox;
+
+fn main() {
+    println!("\n");
+
+    let x = 391;
+    let y: MyBox<i32> = MyBox::new(x);
+
+    assert_eq!(391, x);
+    assert_eq!(391, *y);
+
+    println!("value of x is: {}", x);
+    println!("value of y is: {}", *y);
+
+    println!("\nThe End ...\n");
+}
