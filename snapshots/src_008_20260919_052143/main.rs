@@ -11,7 +11,7 @@
 // host: x86_64-unknown-linux-gnu
 // release: 1.100.0-nightly
 // LLVM version: 23.1.1
- 
+
 // cargo 1.100.0-nightly (495c385d0 2026-09-16)
 // release: 1.100.0-nightly
 // commit-hash: 495c385d0875c4ba51eb72ea0448a2d4c018b8d4
@@ -25,8 +25,29 @@
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
 
+use box_smart_pointer::TripleBox;
+
 fn main() {
     println!("\n");
+
+    let my_triple_box = TripleBox::new(193, 391, 913);
+
+    let tuple_head: &(i32, i32, i32) = my_triple_box.head();
+    let val_zero: &i32 = my_triple_box.zero();
+    let val_one: &i32 = my_triple_box.one();
+    let val_two: &i32 = my_triple_box.two();
+
+    if tuple_head.0 == *val_zero {
+        println!(" -> head.0 is equals val_zero variable ...");
+    }
+
+    if tuple_head.1 == *val_one {
+        println!(" -> head.1 is equals val_one variable ...");
+    }
+
+    if tuple_head.2 == *val_two {
+        println!(" -> head.2 is equals val_two variable ...");
+    }
 
     println!("\nThe End ...\n");
 }
