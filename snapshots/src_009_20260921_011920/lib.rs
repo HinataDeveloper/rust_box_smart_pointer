@@ -1,10 +1,6 @@
-// main.rs
+// lib.rs
 // Date: Thu Sep 21 2026
-// Educational and Practice Rust Programming Language Code
-
-// Project: Learning Chapter 15
-// Goal: Using Smart Pointer: Treating smart pointer like regular reference
-// Dependency: Without dependency
+// Educational and Practice Rust Code
 
 // rustc 1.100.0-nightly (feaadeeac 2026-09-19)
 // binary: rustc
@@ -13,7 +9,7 @@
 // host: x86_64-unknown-linux-gnu
 // release: 1.100.0-nightly
 // LLVM version: 23.1.1
- 
+
 // cargo 1.100.0-nightly (495c385d0 2026-09-16)
 // release: 1.100.0-nightly
 // commit-hash: 495c385d0875c4ba51eb72ea0448a2d4c018b8d4
@@ -27,8 +23,24 @@
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
 
-fn main() {
-    println!("\n");
+use std::{error::Error, ops::Deref};
 
-    println!("\nThe End ...\n");
+pub struct MyBox<T>(T);
+
+impl<T> MyBox<T> {
+    pub fn new(x: T) -> MyBox<T> {
+        MyBox(x)
+    }
+}
+
+impl<T> Deref for MyBox<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub fn show_message(msg: &str) -> Result<(), Box<dyn Error>> {
+    println!(" -> message is: {}", msg);
+    Ok(())
 }
