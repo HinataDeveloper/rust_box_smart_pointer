@@ -3,7 +3,7 @@
 // Educational and Practice Rust Programming Language Code
 
 // Project: Learning Chapter 15
-// Goal: ...
+// Goal: Implementing Drop Trait
 // Dependency: Without dependency
 
 // rustc 1.100.0-nightly (bba531001 2026-09-20)
@@ -27,8 +27,17 @@
 // Kernel Version: 7.2.5-200.fc44.x86_64
 // Firmware Version: 71CN51WW(V1.21)
 
+use box_smart_pointer::User;
+
 fn main() {
     println!("\n");
+
+    let raphael = User::new(1002, "@Raphael", "321654987");
+    let samuel = User::new(2003, "@Samuel", "9517536431");
+
+    println!("Raphael: {}", raphael);
+    println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    println!("Samuel: {}", samuel);
 
     println!("\nThe End ...\n");
 }
