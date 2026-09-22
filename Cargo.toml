@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-argon2 = "0.5"
-rand_core = { version = "0.6", features = ["getrandom"] }
 [[bin]]
 name = "box-smart-pointer"
 path = "src/main.rs"
